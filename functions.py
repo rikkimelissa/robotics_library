@@ -31,14 +31,13 @@ def so3ToVec(x):
 	
 # AxisAng3(x) takes in a numpy array of the rotation vecotr and returns the unit rotation axis w and the rotation amount theta
 def AxisAng3(x):
-	x = 2 ## ?????????
-	return {'omega':omega, 'theta':theta}
+	theta = magnitude(x)
+	omega = x/theta
+	return omega, theta
 
 # MatrixExp3(x) takes in a numpy array of exponential coordinates and returns the matrix exponential
 def MatrixExp3(x):
-	result = AxisAng3(x)
-	th = result['theta']
-	wvec = result['omega']
+	omega,theta = AxisAng3(x)
 	w1 = wvec[0]
 	w2 = wvec[1]
 	w3 = wvec[2]
@@ -47,10 +46,10 @@ def MatrixExp3(x):
 # MatrixLog3(x) takes in a matrix exponential of the form numpy array and returns a rotation vector as a numpy array
 def MatrixLog3(x):
     th = acos((x.trace()-1)/2)
-	w1 = 1/(2*sin(th))*(x[2,1] - x[1,2])
-	w2 = 1/(2*sin(th))*(x[0,2] - x[2,0])
-	w3 = 1/(2*sin(th))*(x[1,0] - x[0,1])
-	return np.array([w1, w2, w3])
+    w1 = 1/(2*sin(th))*(x[2,1] - x[1,2])
+    w2 = 1/(2*sin(th))*(x[0,2] - x[2,0])
+    w3 = 1/(2*sin(th))*(x[1,0] - x[0,1])
+    return np.array([w1, w2, w3])
 
 # RpToTrans(x) takes in a rotation matrix as a numpy array and a postion vector as a numpy array and returns a transformation matrix as a numpy array
 def RpToTrans(rot,pos):
@@ -88,26 +87,34 @@ def se3ToVec(x):
 def Adjoint(x):
     rot, pos = TransToRp(x)
     top = np.concatenate((rot,np.zeros((3,3))),axis = 1)
-    corner = p.dot(R)### ??????
+    p = VecToso3(pos)
+    corner = p.dot(rot)
     bot = np.concatenate((corner,rot),axis = 1)
     return np.concatenate((top,bot))
     
-# ScrewToAxis(point,s,h) takes in a point q in R3, a unit axis s in R3 and a screw pitch and returns the screw axis as a numpy array
-def ScrewToAxis(point, s, h):
-    V_w = s.dot(theta_dot)
-    V_v = np.cross(-s.dot(theta_dot),q) + (h.dot(s)).dot(theta_dot)
-    # ????
-    return np.concatenate((V_w,V_v))
+# ScrewToAxis(q,s,h) takes in a point q in R3, a unit axis s in R3 and a screw pitch and returns the screw axis as a numpy array
+def ScrewToAxis(q, s, h):
+    v = np.cross(-s,q) + h*s
+    return np.concatenate((s,v),axis=1)    
 
 # AxisAng6(x) takes a 6 vector of exponential coordinates for rigid body motion and returns the screw axis, S, and the distance traveled, theta
 def AxisAng6(x):
-    # equally confused
-    return x
+    omega,theta = AxisAng3(x[0:3])
+    v = x[3:6]/theta
+    return np.concatenate((s,v),axis=1) 
 
 # MatrixExp6(x) takes a 6 vector of exponential coordinates and returns T' that is achieved by traveling along S a distance theta
 def MatrixExp6(x):
-    # confused
-    return x
+    omega, theta = AxisAng3(x[0:3])
+    omega_mat = VecToso3(omega)
+    v = x[3:6]/theta
+    I = np.identity(3)
+    e_omega_theta = I + sin(theta)*omega_mat + (1-cos(theta))*omega_mat*omega_mat
+    piece = (I*theta + (1-cos(theta))*omega_mat + (theta-sin(theta))*omega_mat*omega_mat)
+    corner = piece.dot(v)
+    top = np.concatenate((e_omega_theta,corner[np.newaxis].T),axis=1)
+    bot = np.array([[0,0,0,1]])
+    return np.concatenate((top,bot))
 
 # MatrixLog6(x) takes a transformation matrix and returns the corresponding 6-vector of exponential coordinates    
 def MatrixLog6(x):
@@ -120,6 +127,9 @@ def FKinFixed(M, screw_axes, joints):
     # what does e^[s]*th actually mean?
         T = T.dot(e)
     return T.dot(M)
+    
+def FKinBody(M, screw_axes, joints):
+    x=1
     
 
 
