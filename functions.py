@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import numpy as np
-from math import sin, cos, pi
+from math import sin, cos, pi, tan, acos
 
 # magnitude(x) takes in a numpy array and returns the scalar magnitude
 def magnitude(x):
@@ -101,25 +101,54 @@ def ScrewToAxis(q, s, h):
 def AxisAng6(x):
     omega,theta = AxisAng3(x[0:3])
     v = x[3:6]/theta
-    return np.concatenate((s,v),axis=1) 
+    return np.concatenate((omega,v),axis=1), theta 
 
 # MatrixExp6(x) takes a 6 vector of exponential coordinates and returns T' that is achieved by traveling along S a distance theta
 def MatrixExp6(x):
-    omega, theta = AxisAng3(x[0:3])
+    omega, th = AxisAng3(x[0:3])
     omega_mat = VecToso3(omega)
-    v = x[3:6]/theta
+    v = x[3:6]/th
     I = np.identity(3)
-    e_omega_theta = I + sin(theta)*omega_mat + (1-cos(theta))*omega_mat*omega_mat
-    piece = (I*theta + (1-cos(theta))*omega_mat + (theta-sin(theta))*omega_mat*omega_mat)
-    corner = piece.dot(v)
-    top = np.concatenate((e_omega_theta,corner[np.newaxis].T),axis=1)
+    w1 = omega[0]
+    w2 = omega[1]
+    w3 = omega[2]
+    eot = e_omega_theta(omega_mat,th)
+    corner = e_s_theta(omega_mat,th,v)
+    top = np.concatenate((eot,corner[np.newaxis].T),axis=1)
     bot = np.array([[0,0,0,1]])
     return np.concatenate((top,bot))
+    
+def e_omega_theta(omega_mat,th):
+    I = np.identity(3)
+    return I+sin(th)*omega_mat + omega_mat.dot(omega_mat)*(1-cos(th))
+    
+def e_s_theta(omega_mat,th,v):
+    I = np.identity(3)
+    x = (I*th + (1-cos(th))*omega_mat + (th-sin(th))*omega_mat.dot(omega_mat))
+    return x.dot(v)
 
 # MatrixLog6(x) takes a transformation matrix and returns the corresponding 6-vector of exponential coordinates    
 def MatrixLog6(x):
-    # confused
-    return x
+    rot, pos = TransToRp(x)
+    I = np.identity(3)
+    if np.all(I==rot):
+        omega = np.array([0,0,0])
+        v = pos/magnitude(pos)
+        theta = magnitude(pos)
+    elif (np.trace(rot)==-1):
+        theta = pi
+        omega = MatrixLog3(rot)
+        omega_mat = VecToso3(omega)
+        G_inv = 1/theta*I-1/2*omega_mat+(1/theta-1/2*1/tan(theta/2))*omega_mat.dot(omega_mat)
+        v = G_inv.dot(pos)
+    else:
+        theta = acos((np.trace(rot)-1)/2)
+        omega_mat = 1/(2*sin(theta))*(rot-rot.T)
+        omega = so3ToVec(omega_mat)
+        G_inv = 1/theta*I-1/2*omega_mat+(1/theta-1/2*1/tan(theta/2))*omega_mat.dot(omega_mat)
+        v = G_inv.dot(pos)        
+        
+    return np.concatenate((omega,v),axis=1)*theta
 
 def FKinFixed(M, screw_axes, joints):
     T = np.array()
