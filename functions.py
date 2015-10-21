@@ -113,19 +113,19 @@ def MatrixExp6(x):
     w2 = omega[1]
     w3 = omega[2]
     eot = e_omega_theta(omega_mat,th)
-    corner = e_s_theta(omega_mat,th,v)
-    top = np.concatenate((eot,corner[np.newaxis].T),axis=1)
-    bot = np.array([[0,0,0,1]])
-    return np.concatenate((top,bot))
+    return e_s_theta(eot, omega_mat,th,v)
     
 def e_omega_theta(omega_mat,th):
     I = np.identity(3)
     return I+sin(th)*omega_mat + omega_mat.dot(omega_mat)*(1-cos(th))
     
-def e_s_theta(omega_mat,th,v):
+def e_s_theta(eot, omega_mat,th,v):
     I = np.identity(3)
-    x = (I*th + (1-cos(th))*omega_mat + (th-sin(th))*omega_mat.dot(omega_mat))
-    return x.dot(v)
+    pos_no_v = (I*th + (1-cos(th))*omega_mat + (th-sin(th))*omega_mat.dot(omega_mat))
+    pos = pos_no_v.dot(v)
+    top = np.concatenate((eot,pos[np.newaxis].T),axis=1)
+    bot = np.array([[0,0,0,1]])
+    return np.concatenate((top,bot))
 
 # MatrixLog6(x) takes a transformation matrix and returns the corresponding 6-vector of exponential coordinates    
 def MatrixLog6(x):
@@ -146,19 +146,20 @@ def MatrixLog6(x):
         omega_mat = 1/(2*sin(theta))*(rot-rot.T)
         omega = so3ToVec(omega_mat)
         G_inv = 1/theta*I-1/2*omega_mat+(1/theta-1/2*1/tan(theta/2))*omega_mat.dot(omega_mat)
-        v = G_inv.dot(pos)        
-        
+        v = G_inv.dot(pos)                
     return np.concatenate((omega,v),axis=1)*theta
 
 def FKinFixed(M, screw_axes, joints):
-    T = np.array()
-    for axis, joint in screw_axes, joints:
-    # what does e^[s]*th actually mean?
-        T = T.dot(e)
+    T = MatrixExp6(screw_axes[0]*joints[0])
+    for S, theta in zip(screw_axes[1:],joints[1:]):
+        T = T.dot(MatrixExp6(S*theta))           
     return T.dot(M)
     
 def FKinBody(M, screw_axes, joints):
-    x=1
+    T = M
+    for S, theta in zip(screw_axes, joints):
+        T.dot(MatrixExp6(S*theta))
+    return T
     
 
 
