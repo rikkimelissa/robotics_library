@@ -413,8 +413,15 @@ def FKinBody(M, screw_axes, joints):
 '''    
 FixedJacobian takes a set of screw axes and joint angles for a robot's joints expressed in the fixed space frame and returns the space Jacobian.
 ss1 = np.array([[0,0,1,0,0,0],[0,0,1,0,-L1,0],[0,0,1,0,-L1-L2,0],[0,0,0,0,0,1]])
-js1 = np.array([0,0,0,0])
-
+js1 = np.array([0,pi/2,0,0])
+FixedJacobian(ss1,js1)
+Out[207]: 
+array([[ 0.,  0.,  0.,  0.],
+       [ 0.,  0.,  0.,  0.],
+       [ 1.,  1.,  1.,  0.],
+       [ 0.,  0.,  2.,  0.],
+       [ 0., -1., -1.,  0.],
+       [ 0.,  0.,  0.,  1.]])
 '''
 def FixedJacobian(screw_axes, joints):
     J = np.array([screw_axes[0]])
@@ -426,9 +433,32 @@ def FixedJacobian(screw_axes, joints):
         J = np.concatenate((J,[V]), axis=0)
     return J.T
 
-        
-
-
+'''
+BodyJacobian takes a set of screw axes and joint angles for a robot's joints expressed in the body space frame and returns the body Jacobian.
+ss1 = np.array([[0,0,1,0,0,0],[0,0,1,0,-L1,0],[0,0,1,0,-L1-L2,0],[0,0,0,0,0,1]])
+js1 = np.array([0,pi/2,0,0])
+BodyJacobian(ss1,js1)
+Out[138]: 
+array([[ 0.,  0.,  0.,  0.],
+       [ 0.,  0.,  0.,  0.],
+       [ 1.,  1.,  1.,  0.],
+       [-1.,  0.,  0.,  0.],
+       [-1., -1., -2.,  0.],
+       [ 0.,  0.,  0.,  1.]])
+'''
+def BodyJacobian(screw_axes, joints):
+    n = joints.size
+    J = np.array([screw_axes[0]])
+    for i,Bi in enumerate(screw_axes[:n-1]): 
+        T = MatrixExp6(-screw_axes[n-1]*joints[n-1])
+        for B, th in zip(reversed(screw_axes[i+1:n-1]),reversed(joints[i+1:n-1])):
+            T = T.dot(MatrixExp6(-B*th))
+        V = Adjoint(T).dot(Bi)    
+        J = np.concatenate((J,[V]), axis=0)
+    J = np.concatenate((J,[screw_axes[n-1]]),axis=0)
+    J = np.delete(J,0,0)
+    return J.T
+    
 
 
 
