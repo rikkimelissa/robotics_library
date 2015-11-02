@@ -28,7 +28,34 @@ B5 = np.array([0,-1,0,-W2,0,0])
 B6 = np.array([0,0,1,0,0,0])
 screw_axesB = np.vstack((B1,B2,B3,B4,B5,B6))
 #joints = np.array([pi/2,0,0,0,0,0])
-#np.around(FKinBody(M,screw_axesB,joints),decimals=3)
+#np.around[(FKinBody(M,screw_axesB,joints),decimals=3)
+
+# Question 3
+L1 = .55
+L2 = .3
+L3 = .06
+W1 = .045
+M = np.array([[1,0,0,0],[0,1,0,0],[0,0,1,L1+L2+L3],[0,0,0,1]])
+S1 = np.array([0,0,1,0,0,0])
+S2 = np.array([0,1,0,0,0,0])
+S3 = np.array([0,0,1,0,0,0])
+S4 = np.array([0,1,0,-L1,0,W1])
+S5 = np.array([0,0,1,0,0,0])
+S6 = np.array([0,1,0,-L1-L2,0,0])
+S7 = np.array([0,0,1,0,0,0])
+screw_axesS = np.vstack((S1,S2,S3,S4,S5,S6,S7))
+joints = np.array([pi/4,pi/2,pi/7,-pi/8,-pi,.35,pi/2])
+np.around(FKinFixed(M,screw_axesS,joints),decimals=3)
+
+B1 = np.array([0,0,1,0,0,0])
+B2 = np.array([0,1,0,L1+L2+L3,0,0])
+B3 = np.array([0,0,1,0,0,0])
+B4 = np.array([0,1,0,L2+L3,0,W1])
+B5 = np.array([0,0,1,0,0,0])
+B6 = np.array([0,1,0,L3,0,0])
+B7 = np.array([0,0,1,0,0,0])
+screw_axesB = np.vstack((B1,B2,B3,B4,B5,B6,B7))
+np.around(FKinBody(M,screw_axesB,joints),decimals=3)
 
 # Question 4
 Tsd = np.array([[0,1,0,-.6],[0,0,-1,.1],[-1,0,0,.1],[0,0,0,1]])
