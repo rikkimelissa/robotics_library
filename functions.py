@@ -2,6 +2,7 @@
 
 import numpy as np
 from math import sin, cos, pi, tan, acos
+from numpy.linalg import inv
 
 '''
 magnitude(x) takes in a numpy array and returns the scalar magnitude
@@ -111,8 +112,8 @@ Out[259]: array([ 0.   ,  0.   ,  1.571])
 '''
 def MatrixLog3(x):
     th = acos((x.trace()-1)/2)
-    if (sin(th)==0):
-        if (R==np.identity(3)):
+    if (abs(sin(th))<.005):
+        if (np.array_equal(x,np.identity(3))):
             th = 0
             w1=w2=w3 = 0
         else:
@@ -341,7 +342,7 @@ Out[284]: array([ 1.6,  0. ,  0. ,  0. ,  2.4,  2.4])
 def MatrixLog6(x):
     rot, pos = TransToRp(x)
     I = np.identity(3)
-    if np.all(I==rot):
+    if magnitude(I-rot) < .05:
         omega = np.array([0,0,0])
         v = pos/magnitude(pos)
         theta = magnitude(pos)
@@ -458,10 +459,109 @@ def BodyJacobian(screw_axes, joints):
     J = np.concatenate((J,[screw_axes[n-1]]),axis=0)
     J = np.delete(J,0,0)
     return J.T
+
+'''
+IKinBody takes a set of screw axes expressed in the body frame, the end-effector zero configuration, the desired end-effector configuration, a initial guess for the joints, and error limits for the final solution. The bottom row of the returned matrix is the final solution.
+L0 = 2
+L1 = 1
+L2 = 1
+L3 = .5
+B1 = np.array([0,0,-1,L2,0,0])
+B2 = np.array([0,0,0,0,1,0])
+B3 = np.array([0,0,1,0,0,.1])
+screw_axes = np.vstack((B1,B2,B3))
+M = np.array([[-1,0,0,0],[0,1,0,L0+L2],[0,0,-1,L1-L3],[0,0,0,1]])
+Tsd = FKinBody(M, screw_axes, np.array([pi/2,pi/2,pi/8]))
+joints = np.array([0,0,0])
+err_omega = .01
+err_vel = .001
+maxiterates = 100
+IKinBody(screw_axes,M,Tsd,joints,err_omega,err_vel,maxiterates)
+array([[ 0.  ,  0.  ,  0.  ],
+       [ 2.84,  0.63,  1.65],
+       [ 1.34, -0.24,  0.15],
+       [ 2.11,  1.5 ,  0.92],
+       [ 1.58,  1.21,  0.39],
+       [ 1.57,  1.57,  0.38]])
+'''
+def IKinBody(screw_axes,M,Tsd,joints,err_omega,err_vel,maxiterates):
+    i = 0
+    Tsb = FKinBody(M, screw_axes, joints)
+    Vb = MatrixLog6(TransInv(Tsb).dot(Tsd))
+    omega_b = Vb[0:3]
+    vel_b = Vb[3:6]
+    th_old = joints
+    th_mat = [th_old]
+    while (magnitude(omega_b) > err_omega or magnitude(vel_b) > err_vel) and i <= maxiterates:
+        th_new = th_old + MPJ(BodyJacobian(screw_axes,th_old)).dot(Vb)
+        i += 1
+        Tsb = FKinBody(M, screw_axes, th_new)
+        Vb = MatrixLog6(TransInv(Tsb).dot(Tsd))
+        omega_b = Vb[0:3]
+        vel_b = Vb[3:6]
+        th_old = th_new
+        print th_old
+        th_mat = np.concatenate((th_mat,[th_new]), axis=0)
+    return th_mat
+
+''' 
+MP takes a non-square Jacobian and returns the Moore-Penrose pseudoinverse.
+'''
+def MPJ(J):
+    m = J.shape[0]
+    n = J.shape[1]
+    if n>m:
+        try:
+            Jhat = (J.T).dot(inv(J.dot(J.T)))
+        except:
+            Jhat = J.T
+    elif n<m:
+        try:
+            Jhat = (inv((J.T).dot(J))).dot(J.T)
+        except:
+            Jhat = J.T
+    else:
+        try:
+            Jhat = inv(J)
+        except:
+            Jhat = J
+    return Jhat
     
-
-
-
+L0 = 2
+L1 = 1
+L2 = 1
+L3 = .5
+S1 = np.array([0,0,1,L0,0,0])
+S2 = np.array([0,0,0,0,1,0])
+S3 = np.array([0,0,-1,-L0-L2,0,-.1])
+screw_axes = np.vstack((S1,S2,S3))
+M = np.array([[-1,0,0,0],[0,1,0,L0+L2],[0,0,-1,L1-L3],[0,0,0,1]])
+Tsd = FKinFixed(M, screw_axes, np.array([pi/2,pi/2,pi/8]))
+joints = np.array([0,0,0])
+err_omega = .01
+err_vel = .001
+maxiterates = 100
+def IKinFixed(screw_axes,M,Tsd,joints,err_omega,err_vel,maxiterates):
+    i = 0
+    Tsb = FKinFixed(M, screw_axes, joints)
+    Vb = MatrixLog6(TransInv(Tsb).dot(Tsd))
+    Vs = Adjoint(Tsb).dot(Vb)
+    omega_b = Vs[0:3]
+    vel_b = Vs[3:6]
+    th_old = joints
+    th_mat = [th_old]
+    while (magnitude(omega_b) > err_omega or magnitude(vel_b) > err_vel) and i <= maxiterates:
+        th_new = th_old + MPJ(FixedJacobian(screw_axes,th_old)).dot(Vs)
+        i += 1
+        Tsb = FKinFixed(M, screw_axes, th_new)
+        Vb = MatrixLog6(TransInv(Tsb).dot(Tsd))
+        Vs = Adjoint(Tsb).dot(Vb)
+        omega_b = Vs[0:3]
+        vel_b = Vs[3:6]
+        th_old = th_new
+        print th_old
+        th_mat = np.concatenate((th_mat,[th_new]), axis=0)
+    return th_mat
 
 
 
