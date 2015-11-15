@@ -506,6 +506,18 @@ def IKinBody(screw_axes,M,Tsd,joints,err_omega,err_vel,maxiterates):
 
 ''' 
 MP takes a non-square Jacobian and returns the Moore-Penrose pseudoinverse.
+If the inverse is singular, this function finds a new random position to start with by taking the transpose of the Jacobian.
+joints = np.array([pi/4,pi/2,pi/8])
+B1 = np.array([0,0,-1,L2,0,0])
+B2 = np.array([0,0,0,0,1,0])
+B3 = np.array([0,0,1,0,0,.1])
+screw_axes = np.vstack((B1,B2,B3))
+J = BodyJacobian(screw_axes,joints)
+MPJ(J)
+Out[18]: 
+array([[ 0.   ,  0.   , -0.001,  0.359, -0.149,  0.015],
+       [ 0.   ,  0.   ,  0.   ,  0.383,  0.924,  0.   ],
+       [ 0.   ,  0.   ,  0.989,  0.355, -0.147,  0.114]])
 '''
 def MPJ(J):
     m = J.shape[0]
@@ -526,21 +538,39 @@ def MPJ(J):
         except:
             Jhat = J
     return Jhat
-    
-L0 = 2
-L1 = 1
-L2 = 1
-L3 = .5
-S1 = np.array([0,0,1,L0,0,0])
-S2 = np.array([0,0,0,0,1,0])
-S3 = np.array([0,0,-1,-L0-L2,0,-.1])
-screw_axes = np.vstack((S1,S2,S3))
-M = np.array([[-1,0,0,0],[0,1,0,L0+L2],[0,0,-1,L1-L3],[0,0,0,1]])
-Tsd = FKinFixed(M, screw_axes, np.array([pi/2,pi/2,pi/8]))
-joints = np.array([0,0,0])
+
+'''
+IKinFixed takes a set of screw axes expressed in the spaceS frame, the end-effector zero configuration, the desired end-effector configuration, a initial guess for the joints, and error limits for the final solution. The bottom row of the returned matrix is the final solution.
+Derivation: This algorithm is basically equivalent to the algorithm for IKinBody. Differences show up for the forward kinematics, where the screw axes are expressed in space frame and therefore the function FKinFixed is used, and in calculating the spatial velocity. Since MatrixLog6(Tbs.dot(Tsd)) returns spatial velocity in the body frame, this is converted to space frame spatial velocity using the Adjoint Matrix in the following form: Vs = Adjoint(Tsb).dot(Vb).
+L1 = .55
+L2 = .3
+L3 = .06
+W1 = .045
+M_wam = np.array([[1,0,0,0],[0,1,0,0],[0,0,1,L1+L2+L3],[0,0,0,1]])
+S1 = np.array([0,0,1,0,0,0])
+S2 = np.array([0,1,0,0,0,0])
+S3 = np.array([0,0,1,0,0,0])
+S4 = np.array([0,1,0,-L1,0,W1])
+S5 = np.array([0,0,1,0,0,0])
+S6 = np.array([0,1,0,-L1-L2,0,0])
+S7 = np.array([0,0,1,0,0,0])
+screw_axes_wam_S = np.vstack((S1,S2,S3,S4,S5,S6,S7))
+Tsd = np.array([[1,0,0,.4],[0,1,0,0],[0,0,1,.4],[0,0,0,1]])
+joints = np.array([0,0,0,0,0,0,0])
 err_omega = .01
-err_vel = .001
+erro_vel = .001
 maxiterates = 100
+np.around(IKinFixed(screw_axes_wam_S, M_wam, Tsd, joints, err_omega, err_vel, maxiterates),decimals=3)
+Out[193]: 
+array([[ 0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ],
+       [ 0.   ,  0.   ,  0.   , -0.243,  0.   , -0.34 ,  0.   ],
+       [ 0.   ,  2.157,  0.   , -4.49 ,  0.   ,  2.333,  0.   ],
+       [ 0.   ,  0.668,  0.   , -1.516,  0.   ,  0.847,  0.   ],
+       [ 0.   ,  1.327,  0.   , -2.099,  0.   ,  0.772,  0.   ],
+       [ 0.   ,  1.418,  0.   , -1.706,  0.   ,  0.288,  0.   ],
+       [ 0.   ,  1.354,  0.   , -1.714,  0.   ,  0.359,  0.   ],
+       [ 0.   ,  1.354,  0.   , -1.71 ,  0.   ,  0.356,  0.   ]])
+'''
 def IKinFixed(screw_axes,M,Tsd,joints,err_omega,err_vel,maxiterates):
     i = 0
     Tsb = FKinFixed(M, screw_axes, joints)
@@ -563,9 +593,35 @@ def IKinFixed(screw_axes,M,Tsd,joints,err_omega,err_vel,maxiterates):
         th_mat = np.concatenate((th_mat,[th_new]), axis=0)
     return th_mat
 
+'''
+CubicTimeScaling takes a total travel time T and the current time t in [0,T] and returns the path parameter s corresponding to a motion that begins and ends at zero velocity
+'''
+def CubicTimeScaling(T,t):
+    a2 = 3./(T**2)
+    a3 = -2./(T**3)
+    s = a2*t**2+a3*t**3
+    return s
+    
+'''
+QuinticTimeScaling takes a total travel time T and the current time t in [0,T] and returns the path parameter s corresponding to a motion that begins and ends at zero velocity and zero acceleration
+'''
+def QuinticTimeScaling(T,t):
+    if (t > T) or (t < 0):
+        raise ValueError('Out of time range')
+    a3 = 10./(T**3)
+    a4 = -15./(T**4)
+    a5 = 6./(T**5)
+    s = a3*t**3 + a4*t**4 + a5*t**5
+    return s
 
-
-
-
-
+def JointTrajectory(thStart, thEnd, T, N, timeScale):
+    if (N < 2):
+        raise ValueError('N must be 2 or greater')
+    tSpace = np.linspace(0,T,N)
+    for t in tSpace:
+        s = CubicTimeScaling(T,t)
+        th = (1-s)*thStart + s*thEnd
+        print th
+        
+    
 
