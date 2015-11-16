@@ -484,7 +484,7 @@ array([[ 0.  ,  0.  ,  0.  ],
        [ 1.58,  1.21,  0.39],
        [ 1.57,  1.57,  0.38]])
 '''
-def IKinBody(screw_axes,M,Tsd,joints,err_omega,err_vel,maxiterates):
+def IKinBodyMat(screw_axes,M,Tsd,joints,err_omega,err_vel,maxiterates):
     i = 0
     Tsb = FKinBody(M, screw_axes, joints)
     Vb = MatrixLog6(TransInv(Tsb).dot(Tsd))
@@ -500,7 +500,6 @@ def IKinBody(screw_axes,M,Tsd,joints,err_omega,err_vel,maxiterates):
         omega_b = Vb[0:3]
         vel_b = Vb[3:6]
         th_old = th_new
-        print th_old
         th_mat = np.concatenate((th_mat,[th_new]), axis=0)
     return th_mat
 
@@ -571,7 +570,7 @@ array([[ 0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ],
        [ 0.   ,  1.354,  0.   , -1.714,  0.   ,  0.359,  0.   ],
        [ 0.   ,  1.354,  0.   , -1.71 ,  0.   ,  0.356,  0.   ]])
 '''
-def IKinFixed(screw_axes,M,Tsd,joints,err_omega,err_vel,maxiterates):
+def IKinFixedMat(screw_axes,M,Tsd,joints,err_omega,err_vel,maxiterates):
     i = 0
     Tsb = FKinFixed(M, screw_axes, joints)
     Vb = MatrixLog6(TransInv(Tsb).dot(Tsd))
@@ -592,6 +591,85 @@ def IKinFixed(screw_axes,M,Tsd,joints,err_omega,err_vel,maxiterates):
         print th_old
         th_mat = np.concatenate((th_mat,[th_new]), axis=0)
     return th_mat
+
+def IKinBody(screw_axes,M,Tsd,joints,err_omega,err_vel,maxiterates):
+    i = 0
+    Tsb = FKinBody(M, screw_axes, joints)
+    Vb = MatrixLog6(TransInv(Tsb).dot(Tsd))
+    omega_b = Vb[0:3]
+    vel_b = Vb[3:6]
+    th_old = joints
+    th_mat = [th_old]
+    while (magnitude(omega_b) > err_omega or magnitude(vel_b) > err_vel) and i <= maxiterates:
+        th_new = th_old + MPJ(BodyJacobian(screw_axes,th_old)).dot(Vb)
+        i += 1
+        Tsb = FKinBody(M, screw_axes, th_new)
+        Vb = MatrixLog6(TransInv(Tsb).dot(Tsd))
+        omega_b = Vb[0:3]
+        vel_b = Vb[3:6]
+        th_old = th_new
+    return th_old%(2*pi)
+
+'''
+IKinFixed takes a set of screw axes expressed in the spaceS frame, the end-effector zero configuration, the desired end-effector configuration, a initial guess for the joints, and error limits for the final solution. The bottom row of the returned matrix is the final solution.
+
+Derivation: This algorithm is basically equivalent to the algorithm for IKinBody. Differences show up for the forward kinematics, where the screw axes are expressed in space frame and therefore the function FKinFixed is used, and in calculating the spatial velocity. Since MatrixLog6(Tbs.dot(Tsd)) returns spatial velocity in the body frame, this is converted to space frame spatial velocity using the Adjoint Matrix in the following form: Vs = Adjoint(Tsb).dot(Vb).
+
+L1 = .55
+L2 = .3
+L3 = .06
+W1 = .045
+M_wam = np.array([[1,0,0,0],[0,1,0,0],[0,0,1,L1+L2+L3],[0,0,0,1]])
+S1 = np.array([0,0,1,0,0,0])
+
+S2 = np.array([0,1,0,0,0,0])
+S3 = np.array([0,0,1,0,0,0])
+S4 = np.array([0,1,0,-L1,0,W1])
+S5 = np.array([0,0,1,0,0,0])
+S6 = np.array([0,1,0,-L1-L2,0,0])
+S7 = np.array([0,0,1,0,0,0])
+
+screw_axes_wam_S = np.vstack((S1,S2,S3,S4,S5,S6,S7))
+Tsd = np.array([[1,0,0,.4],[0,1,0,0],[0,0,1,.4],[0,0,0,1]])
+joints = np.array([0,0,0,0,0,0,0])
+err_omega = .01
+erro_vel = .001
+
+maxiterates = 100
+np.around(IKinFixed(screw_axes_wam_S, M_wam, Tsd, joints, err_omega, err_vel, maxiterates),decimals=3)
+
+Out[193]: 
+array([[ 0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ],
+       [ 0.   ,  0.   ,  0.   , -0.243,  0.   , -0.34 ,  0.   ],
+
+       [ 0.   ,  2.157,  0.   , -4.49 ,  0.   ,  2.333,  0.   ],
+       [ 0.   ,  0.668,  0.   , -1.516,  0.   ,  0.847,  0.   ],
+       [ 0.   ,  1.327,  0.   , -2.099,  0.   ,  0.772,  0.   ],
+       [ 0.   ,  1.418,  0.   , -1.706,  0.   ,  0.288,  0.   ],
+       [ 0.   ,  1.354,  0.   , -1.714,  0.   ,  0.359,  0.   ],
+
+       [ 0.   ,  1.354,  0.   , -1.71 ,  0.   ,  0.356,  0.   ]])
+'''
+def IKinFixed(screw_axes,M,Tsd,joints,err_omega,err_vel,maxiterates):
+    i = 0
+    Tsb = FKinFixed(M, screw_axes, joints)
+    Vb = MatrixLog6(TransInv(Tsb).dot(Tsd))
+    Vs = Adjoint(Tsb).dot(Vb)
+    omega_b = Vs[0:3]
+    vel_b = Vs[3:6]
+    th_old = joints
+    th_mat = [th_old]
+    while (magnitude(omega_b) > err_omega or magnitude(vel_b) > err_vel) and i <= maxiterates:
+        th_new = th_old + MPJ(FixedJacobian(screw_axes,th_old)).dot(Vs)
+        i += 1
+        Tsb = FKinFixed(M, screw_axes, th_new)
+        Vb = MatrixLog6(TransInv(Tsb).dot(Tsd))
+        Vs = Adjoint(Tsb).dot(Vb)
+        omega_b = Vs[0:3]
+        vel_b = Vs[3:6]
+        th_old = th_new        
+    return th_old%(2*pi)
+
 
 '''
 CubicTimeScaling takes a total travel time T and the current time t in [0,T] and returns the path parameter s corresponding to a motion that begins and ends at zero velocity
