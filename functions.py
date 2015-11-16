@@ -128,7 +128,7 @@ def MatrixLog3(x):
     return th*np.array([w1, w2, w3])
 
 ''' 
-RpToTrans(x) takes in a rotation matrix as a numpy array and a postion vector as a numpy array and returns a transformation matrix as a numpy array
+RpToTrans(rot,pos) takes in a rotation matrix as a numpy array and a postion vector as a numpy array and returns a transformation matrix as a numpy array
 Example usage:
 R = np.array([[1,0,0],[0,0,-1],[0,1,0]])
 pos = np.array([-3,1,2])
@@ -614,14 +614,66 @@ def QuinticTimeScaling(T,t):
     s = a3*t**3 + a4*t**4 + a5*t**5
     return s
 
+'''
+JointTrajectory takes initial and final joint variables, the time of the motion, the number of points in the trajectory, and the time scaling method as 3 or 5 represeting cubic and quintic time scaling. The elapsed time between each row is T/(N-1). The trajectory is a straight-line motion in joint space
+'''
 def JointTrajectory(thStart, thEnd, T, N, timeScale):
+    thList = [thStart]
     if (N < 2):
         raise ValueError('N must be 2 or greater')
     tSpace = np.linspace(0,T,N)
-    for t in tSpace:
-        s = CubicTimeScaling(T,t)
+    for t in tSpace[1:]:
+        if timeScale == 3:
+            s = CubicTimeScaling(T,t)
+        elif timeScale == 5:
+            s = QuinticTimeScaling(T,t)
+        else:
+            raise ValueError('timeScale must be 3 or 5')
         th = (1-s)*thStart + s*thEnd
-        print th
+        thList = np.concatenate((thList,[th]), axis=0)
+    return thList
         
-    
+'''
+ScrewTrajectory takes initial and final end-effectory configurations, the time of the motion, the number of points in the trajectory, and the time scaling method as 3 or 5 represeting cubic and quintic time scaling. The elapsed time between each row is T/(N-1). This represents a discretized trajectory of the screw motion.
+''' 
+def ScrewTrajectory(Xstart, Xend, T, N, timeScale):
+    tSpace = np.linspace(0,T,N)
+    Xse = TransInv(Xstart).dot(Xend)
+    i = 0
+    Xlist = np.empty((N,4,4))
+    Xlist[0] = Xse;
+    for t in tSpace[1:]:
+        i = i+1;
+        if timeScale == 3:
+            s = CubicTimeScaling(T,t)
+        elif timeScale == 5:
+            s = QuinticTimeScaling(T,t)
+        else:
+            raise ValueError('timeScale must be 3 or 5')
+        X = Xstart.dot(MatrixExp6(MatrixLog6(Xse)*s))
+        Xlist[i] = X
+    return Xlist
 
+'''
+CartesianTrajectory takes initial and final end-effectory configurations, the time of the motion, the number of points in the trajectory, and the time scaling method as 3 or 5 represeting cubic and quintic time scaling. The elapsed time between each row is T/(N-1). This represents a straight line trajectory, where the origin's motion is decoupled from the rotational motion.
+''' 
+def CartesianTrajectory(Xstart, Xend, T, N, timeScale):
+    Rs, ps = TransToRp(Xstart)
+    Re, pe = TransToRp(Xend)
+    tSpace = np.linspace(0,T,N)
+    Rse = RotInv(Rs).dot(Re)
+    i = 0
+    Xlist = np.empty((N,4,4))
+    Xlist[0] = Xstart
+    for t in tSpace[1:]:
+        i = i+1;
+        if timeScale == 3:
+            s = CubicTimeScaling(T,t)
+        elif timeScale == 5:
+            s = QuinticTimeScaling(T,t)
+        else:
+            raise ValueError('timeScale must be 3 or 5')
+        p = ps + s*(pe-ps)
+        R = Rs.dot(MatrixExp3(MatrixLog3(Rse)*s))
+        Xlist[i] = RpToTrans(R,p)
+    return Xlist
