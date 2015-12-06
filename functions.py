@@ -759,27 +759,62 @@ def CartesianTrajectory(Xstart, Xend, T, N, timeScale):
 def InverseDynamics(th, vel, acc, g, Ftip, M, G, S):
     n = S.shape[0]
     V = np.empty([n,6])
+    Vdot = np.empty([n,6])
     A = np.empty([n,6])
+    F = np.empty([n,6])
+    T = np.empty([n,4,4])
+    Torque = np.empty([n])
     for i in range(n):
         Mi_m1_i = M[i]
         Mi = np.array([[1, 0, 0, 0],[0, 1, 0, 0],[0, 0, 1, 0],[0,0,0,1]])
         for m in range(i+1):
             Mi = Mi.dot(M[m])
-        Ai = Adjoint(TransInv(Mi)).dot(S[i])
-        Ti_m1_i = Mi_m1_i.dot(MatrixExp6(Ai*th[i]))
+        A[i] = Adjoint(TransInv(Mi)).dot(S[i])
+        Ti_m1_i = Mi_m1_i.dot(MatrixExp6(A[i]*th[i]))
+        T[i] = Ti_m1_i; 
         Ti_i_m1 = TransInv(Ti_m1_i)
         if i == 0:
-            V[i] = Ai*th[i]
-            A[i] = np.array([0,0,0,-g[0],-g[1],-g[2]])
+            V[i] = A[i]*th[i]
+            Vdot[i] = np.array([0,0,0,-g[0],-g[1],-g[2]])
         else:
-            V[i] = Adjoint(Ti_i_m1).dot(V[i-1]) + Ai*vel[i]
-            A[i] = Adjoint(Ti_i_m1).dot(A[i-1]) + Ai*acc[i] + Lie(V[i],Ai*vel[i])
-
+            V[i] = Adjoint(Ti_i_m1).dot(V[i-1]) + A[i]*vel[i]
+            Vdot[i] = Adjoint(Ti_i_m1).dot(Vdot[i-1]) + A[i]*acc[i] + Lie(V[i],A[i]*vel[i])
+    for i in range(n-1,-1,-1):
+        if i == n-1:
+            Ti_p1_i = TransInv(M[i+1])
+            F[i] = (Adjoint(Ti_p1_i).transpose()).dot(Ftip) + G[i].dot(Vdot[i]) - (ad(V[i]).transpose()).dot(G[i].dot(V[i]))
+            Torque[i] = (F[i].transpose()).dot(A[i])
+        else:
+            Ti_i_p1 = T[i+1]
+            Ti_p1_i = TransInv(Ti_i_p1) 
+            F[i] = (Adjoint(Ti_p1_i).transpose()).dot(F[i+1]) + G[i].dot(Vdot[i]) - (ad(V[i]).transpose()).dot(G[i].dot(V[i]))
+            Torque[i] = (F[i].transpose()).dot(A[i])
+    return Torque
         
 def Lie(V1,V2):
-    what = VecToso3(V[i][0:3])
-    vhat = VecToso3(V[i][3:6])
+    return ad(V1).dot(V2)
+    
+def ad(V):
+    what = VecToso3(V[0:3])
+    vhat = VecToso3(V[3:6])
+    top = np.concatenate((what,np.zeros((3,3))),axis=1)
+    bot = np.concatenate((vhat, what),axis=1)
+    return np.concatenate((top,bot))
+    
+def InertiaMatrix(th, M, G, S):
+    n = S.shape[0]
+    Imat = np.empty([6,n])
+    for i in range(n):
+        vel = np.zeros(n)
+        acc = np.zeros(n)
+        acc[i] = 1
+        g = np.array([0,0,0])
+        Ftip = np.array([0,0,0,0,0,0])
+        I = InverseDynamics(th, vel, acc, g, Ftip, M, G, S)
+        Imat[:,i]=I
+    return Imat
 
+def 
         
 '''
 e_omega_theta(omega_mat, th) takes in a skew symmetrix matrix and a distance traveled, theta, and returns the matrix exponential for rotations
