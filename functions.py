@@ -814,37 +814,29 @@ def InertiaMatrix(th, M, G, S):
         Imat[:,i]=I
     return Imat
 
-def 
-        
-'''
-e_omega_theta(omega_mat, th) takes in a skew symmetrix matrix and a distance traveled, theta, and returns the matrix exponential for rotations
-Example usage:
-omega_mat = np.array([[0,-2,-1],[2,0,-3],[1,3,0]])
-th = pi/2
-e_omega_theta(omega_mat, th)
-Out[314]: 
-array([[ -4.,  -5.,   5.],
-       [ -1., -12.,  -5.],
-       [  7.,   1.,  -9.]])
-
-e_s_theta(eot, omega_mat, th) takes in a matrix exponential for rotations, a skew symmetrix matrix, a distance traveled theta, and a velocity vector, and returns the matrix exponential for transformations
-
-Example usage:
-
-omega_mat = np.array([[0,-2,-1],[2,0,-3],[1,3,0]])
-
-th = pi/2
-
-eot = e_omega_theta(omega_mat, th)
-v = np.array([2, 0, 0])
-
-e_s_theta(eot, omega_mat,th,v)
-Out[321]: 
-array([[ -4. ,  -5. ,   5. ,  -2.6],
-
-       [ -1. , -12. ,  -5. ,   0.6],
-       [  7. ,   1. ,  -9. ,   8.8],
-       [  0. ,   0. ,   0. ,   1. ]])
-'''
+def CoriolisForces(th, vel, M, G, S):
+    acc = np.zeros(n)
+    g = np.array([0,0,0])
+    Ftip = np.array([0,0,0,0,0,0])
+    C = InverseDynamics(th, vel, acc, g, Ftip, M, G, S)
+    return C
     
+def GravityForces(th, g, M, G, S):
+    vel = np.zeros(n)
+    acc = np.zeros(n)
+    Ftip = np.array([0,0,0,0,0,0])
+    f = InverseDynamics(th, vel, acc, g, Ftip, M, G, S)
+    return f
+
+def EndEffectorForces(th, Ftip, S):
+    J = FixedJacobian(S, th)
+    return (J.transpose()).dot(Ftip)
+    
+def ForwardDynamics(th, vel, torque, g, Ftip, M, G, S):
+    c = CoriolisForces(th, vel, M, G, S)
+    fg = GravityForces(th, g, M, G, S)
+    fj = EndEffectorForces(th, Ftip, S)
+    m = InertiaMatrix(th, M, G, S)
+    RH = torque - c - fg - fj
+    return np.linalg.pinv(m).dot(RH)
     
