@@ -755,3 +755,61 @@ def CartesianTrajectory(Xstart, Xend, T, N, timeScale):
         R = Rs.dot(MatrixExp3(MatrixLog3(Rse)*s))
         Xlist[i] = RpToTrans(R,p)
     return Xlist
+    
+def InverseDynamics(th, vel, acc, g, Ftip, M, G, S):
+    n = S.shape[0]
+    V = np.empty([n,6])
+    A = np.empty([n,6])
+    for i in range(n):
+        Mi_m1_i = M[i]
+        Mi = np.array([[1, 0, 0, 0],[0, 1, 0, 0],[0, 0, 1, 0],[0,0,0,1]])
+        for m in range(i+1):
+            Mi = Mi.dot(M[m])
+        Ai = Adjoint(TransInv(Mi)).dot(S[i])
+        Ti_m1_i = Mi_m1_i.dot(MatrixExp6(Ai*th[i]))
+        Ti_i_m1 = TransInv(Ti_m1_i)
+        if i == 0:
+            V[i] = Ai*th[i]
+            A[i] = np.array([0,0,0,-g[0],-g[1],-g[2]])
+        else:
+            V[i] = Adjoint(Ti_i_m1).dot(V[i-1]) + Ai*vel[i]
+            A[i] = Adjoint(Ti_i_m1).dot(A[i-1]) + Ai*acc[i] + Lie(V[i],Ai*vel[i])
+
+        
+def Lie(V1,V2):
+    what = VecToso3(V[i][0:3])
+    vhat = VecToso3(V[i][3:6])
+
+        
+'''
+e_omega_theta(omega_mat, th) takes in a skew symmetrix matrix and a distance traveled, theta, and returns the matrix exponential for rotations
+Example usage:
+omega_mat = np.array([[0,-2,-1],[2,0,-3],[1,3,0]])
+th = pi/2
+e_omega_theta(omega_mat, th)
+Out[314]: 
+array([[ -4.,  -5.,   5.],
+       [ -1., -12.,  -5.],
+       [  7.,   1.,  -9.]])
+
+e_s_theta(eot, omega_mat, th) takes in a matrix exponential for rotations, a skew symmetrix matrix, a distance traveled theta, and a velocity vector, and returns the matrix exponential for transformations
+
+Example usage:
+
+omega_mat = np.array([[0,-2,-1],[2,0,-3],[1,3,0]])
+
+th = pi/2
+
+eot = e_omega_theta(omega_mat, th)
+v = np.array([2, 0, 0])
+
+e_s_theta(eot, omega_mat,th,v)
+Out[321]: 
+array([[ -4. ,  -5. ,   5. ,  -2.6],
+
+       [ -1. , -12. ,  -5. ,   0.6],
+       [  7. ,   1. ,  -9. ,   8.8],
+       [  0. ,   0. ,   0. ,   1. ]])
+'''
+    
+    
