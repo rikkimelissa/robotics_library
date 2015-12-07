@@ -2,6 +2,7 @@ import pylab
 import numpy as np
 from math import pi
 from functions import JointTrajectory, InverseDynamicsTrajectory, ForwardDynamicsTrajectory
+import csv
 
 M01 = np.array([[1, 0, 0, 0],[0, 1, 0, 0],[0, 0, 1, 0.089159],[0,0,0,1]])
 M12 = np.array([[0, 0, 1, 0.28],[0, 1, 0, 0.13585],[-1, 0, 0, 0],[0,0,0,1]])
@@ -63,7 +64,7 @@ for i in range(6):
     acc = np.append(0,np.diff(vel)/del_t)
     velList[:,i] = vel
     accList[:,i] = acc    
-torques = InverseDynamicsTrajectory(thList, velList, accList, Ftips, g, M, G, S)
+torques = InverseDynamicsTrajectory(thList, velList, accList, g, Ftips, M, G, S)
 
 pylab.figure()
 pylab.plot(tSpace,torques[:,0],'-r',label='Joint 0')
@@ -78,12 +79,29 @@ pylab.title('Desired torque')
 pylab.legend(loc='upper left')
 pylab.show(block=False)
 
-x,y = ForwardDynamicsTrajectory(thStart, thStart, torques, del_t, g, Ftip, M, G, S)
+
+for i in range(int(N)):
+    torques[i] = np.array([2,2,2,2,2,2])
+pos, vel = ForwardDynamicsTrajectory(thStart, thStart, torques, del_t, g, Ftip, M, G, S)
 
 pylab.figure()
-#tSpace = np.linspace(0,T,N)
-pylab.plot(tSpace,x[:,2],'--b',label='position (rad)')
-#pylab.plot(tSpace,y[:,0],'-r',label='velocity (rad/s)')
-#pylab.plot(x[:,0])
+pylab.plot(tSpace,pos[:,0],'--b',label='Joint 1')
+pylab.plot(tSpace,pos[:,1],'--r',label='Joint 2')
+pylab.plot(tSpace,pos[:,2],'--g',label='Joint 3')
+pylab.plot(tSpace,pos[:,3],'--m',label='Joint 4')
+pylab.plot(tSpace,pos[:,4],'--c',label='Joint 5')
+pylab.plot(tSpace,pos[:,5],'--y',label='Joint 6')
+pylab.xlabel('Time (s)')
+pylab.ylabel('Position (rad)')
+pylab.title('Forward dynamics positions')
+pylab.legend(loc='upper left')
 pylab.show(block=False)
+
+f = open('data.csv','wb')
+writer = csv.writer(f)
+t = 0
+for i in range(int(N)):
+    t += del_t
+    writer.writerow([np.append(t,pos[i]).tolist()])
+f.close()
 

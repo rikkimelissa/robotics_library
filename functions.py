@@ -775,7 +775,7 @@ def InverseDynamics(th, vel, acc, g, Ftip, M, G, S):
         Ti_i_m1 = TransInv(Ti_m1_i)
         if i == 0:
             V[i] = A[i]*th[i]
-            Vdot[i] = np.array([0,0,0,-g[0],-g[1],-g[2]])
+            Vdot[i] = Adjoint(Ti_i_m1).dot(np.array([0,0,0,-g[0],-g[1],-g[2]])) + A[i]*acc[i] + Lie(V[i],A[i]*vel[i])
         else:
             V[i] = Adjoint(Ti_i_m1).dot(V[i-1]) + A[i]*vel[i]
             Vdot[i] = Adjoint(Ti_i_m1).dot(Vdot[i-1]) + A[i]*acc[i] + Lie(V[i],A[i]*vel[i])
@@ -847,7 +847,7 @@ def EulerStep(th0, vel0, acc0, del_t):
     vel = vel0 + del_t*acc0
     return th, vel
     
-def InverseDynamicsTrajectory(ths, vels, accs, Ftips, g, M, G, S):
+def InverseDynamicsTrajectory(ths, vels, accs, g, Ftips, M, G, S):
     N = ths.shape[0]
     n = S.shape[0]
     torques = np.empty([N, n])
