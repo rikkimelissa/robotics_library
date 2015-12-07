@@ -815,6 +815,7 @@ def InertiaMatrix(th, M, G, S):
     return Imat
 
 def CoriolisForces(th, vel, M, G, S):
+    n = S.shape[0]
     acc = np.zeros(n)
     g = np.array([0,0,0])
     Ftip = np.array([0,0,0,0,0,0])
@@ -822,6 +823,7 @@ def CoriolisForces(th, vel, M, G, S):
     return C
     
 def GravityForces(th, g, M, G, S):
+    n = S.shape[0]
     vel = np.zeros(n)
     acc = np.zeros(n)
     Ftip = np.array([0,0,0,0,0,0])
@@ -839,4 +841,37 @@ def ForwardDynamics(th, vel, torque, g, Ftip, M, G, S):
     m = InertiaMatrix(th, M, G, S)
     RH = torque - c - fg - fj
     return np.linalg.pinv(m).dot(RH)
+    
+def EulerStep(th0, vel0, acc0, del_t):
+    th = th0 + del_t*vel0
+    vel = vel0 + del_t*acc0
+    return th, vel
+    
+def InverseDynamicsTrajectory(ths, vels, accs, Ftips, g, M, G, S):
+    N = ths.shape[0]
+    n = S.shape[0]
+    torques = np.empty([N, n])
+    for i in range(N):
+        th = ths[i]
+        vel = vels[i]
+        acc = accs[i]
+        Ftip = Ftips[i]
+        torque = InverseDynamics(th, vel, acc, g, Ftip, M, G, S)
+        torques[i] = torque
+    return torques
+
+def ForwardDynamicsTrajectory(th, vel, torques, del_t, g, Ftip, M, G, S):
+    N = torques.shape[0]
+    n = S.shape[0]
+    ths = np.empty([N, n])
+    vels = np.empty([N, n])
+    ths[0] = th
+    vels[0] = vel
+    for i in range(N):
+        torque = torques[i]
+        acc = ForwardDynamics(th, vel, torque, g, Ftip, M, G, S)
+        th, vel = EulerStep(th, vel, acc, del_t)
+        ths[i] = th
+        vels[i] = vel
+    return ths, vels
     
