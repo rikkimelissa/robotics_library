@@ -755,7 +755,43 @@ def CartesianTrajectory(Xstart, Xend, T, N, timeScale):
         R = Rs.dot(MatrixExp3(MatrixLog3(Rse)*s))
         Xlist[i] = RpToTrans(R,p)
     return Xlist
-    
+
+''' 
+InverseDynamics takes in a vector of joint positions, velocities, and accelerations, a three-vector g indicating the direction and magnitude of gravitational acceleration, a spatial force indicating the force at the tip, and a description of the robot
+M01 = np.array([[1, 0, 0, 0],[0, 1, 0, 0],[0, 0, 1, 0.089159],[0,0,0,1]])
+M12 = np.array([[0, 0, 1, 0.28],[0, 1, 0, 0.13585],[-1, 0, 0, 0],[0,0,0,1]])
+M23 = np.array([[1, 0, 0, 0],[0, 1, 0, -0.1197],[0, 0, 1, 0.395],[0,0,0,1]])
+M34 = np.array([[0, 0, 1, 0],[0, 1, 0, 0],[-1, 0, 0, 0.14225],[0,0,0,1]])
+M45 = np.array([[1, 0, 0, 0],[0, 1, 0, 0.093],[0, 0, 1, 0],[0,0,0,1]])
+M56 = np.array([[1, 0, 0, 0],[0, 1, 0, 0],[0, 0, 1, 0.094565],[0,0,0,1]])
+M67 = np.array([[1, 0, 0, 0],[0, 1, 0, .082],[0, 0, 1, 0],[0,0,0,1]])
+M = [M01, M12, M23, M34, M45, M56, M67]
+S1 = np.array([0,0,1,0,0,0])
+S2 = np.array([0,1,0,-.089159,0,0])
+S3 = np.array([0,1,0,-.089159,0,.425])
+S4 = np.array([0,1,0,-.089159,0,.81725])
+S5 = np.array([0,0,-1,-.10915,.81725,0])
+S6 = np.array([0,1,0,.005491,0,.81725])
+S = np.vstack((S1,S2,S3,S4,S5,S6))
+m = 3.7; Ixx=0.01026749; Ixy = 0; Ixz = 0; Iyy = 0.01026749; Iyz = 0; Izz = 0.00666
+G1 = np.array([[Ixx,Ixy,Ixz,0,0,0],[Ixy,Iyy,Iyz,0,0,0],[Ixz,Iyz,Izz,0,0,0],[0,0,0,m,0,0],[0,0,0,0,m,0],[0,0,0,0,0,m]])
+m = 8.393; Ixx=0.22689; Iyy = Ixx; Izz = 0.0151
+G2 = np.array([[Ixx,Ixy,Ixz,0,0,0],[Ixy,Iyy,Iyz,0,0,0],[Ixz,Iyz,Izz,0,0,0],[0,0,0,m,0,0],[0,0,0,0,m,0],[0,0,0,0,0,m]])
+m = 2.275; Ixx=0.04944; Iyy = Ixx; Izz = 0.004095
+G3 = np.array([[Ixx,Ixy,Ixz,0,0,0],[Ixy,Iyy,Iyz,0,0,0],[Ixz,Iyz,Izz,0,0,0],[0,0,0,m,0,0],[0,0,0,0,m,0],[0,0,0,0,0,m]])
+m = 1.219; Ixx=0.1111727; Iyy = Ixx; Izz = 0.21942
+G4 = np.array([[Ixx,Ixy,Ixz,0,0,0],[Ixy,Iyy,Iyz,0,0,0],[Ixz,Iyz,Izz,0,0,0],[0,0,0,m,0,0],[0,0,0,0,m,0],[0,0,0,0,0,m]])
+m = 1.219; Ixx=0.1111727; Iyy = Ixx; Izz = 0.21942
+G5 = np.array([[Ixx,Ixy,Ixz,0,0,0],[Ixy,Iyy,Iyz,0,0,0],[Ixz,Iyz,Izz,0,0,0],[0,0,0,m,0,0],[0,0,0,0,m,0],[0,0,0,0,0,m]])
+m = .1879; Ixx=0.017136; Iyy = Ixx; Izz = 0.033822
+G6 = np.array([[Ixx,Ixy,Ixz,0,0,0],[Ixy,Iyy,Iyz,0,0,0],[Ixz,Iyz,Izz,0,0,0],[0,0,0,m,0,0],[0,0,0,0,m,0],[0,0,0,0,0,m]])
+G = [G1, G2, G3, G4, G5, G6]
+Ftip = np.array([0,0,0,0,0,0])
+g = np.array([0,0,-9.8])
+thStart = np.array([0,0,0,0,0,0])
+torque = InverseDynamics(thStart, thStart, thStart, g, Ftip, M, G, S)
+'''
+
 def InverseDynamics(th, vel, acc, g, Ftip, M, G, S):
     n = S.shape[0]
     V = np.empty([n,6])
@@ -791,16 +827,25 @@ def InverseDynamics(th, vel, acc, g, Ftip, M, G, S):
             Torque[i] = (F[i].transpose()).dot(A[i])
     return Torque
         
+'''
+Lie takes in two 6-vectors and computes the Lie bracket
+'''
 def Lie(V1,V2):
     return ad(V1).dot(V2)
-    
+
+'''
+ad computes the adjoint of a vector
+'''    
 def ad(V):
     what = VecToso3(V[0:3])
     vhat = VecToso3(V[3:6])
     top = np.concatenate((what,np.zeros((3,3))),axis=1)
     bot = np.concatenate((vhat, what),axis=1)
     return np.concatenate((top,bot))
-    
+
+'''
+InertiaMatrix computes the numerical inertia matrix of a n-joint serial chain at a given configuration
+'''    
 def InertiaMatrix(th, M, G, S):
     n = S.shape[0]
     Imat = np.empty([6,n])
@@ -814,6 +859,9 @@ def InertiaMatrix(th, M, G, S):
         Imat[:,i]=I
     return Imat
 
+'''
+CoriolisForces computer the vector of Coriolis and centripetal terms for a given configuration
+'''
 def CoriolisForces(th, vel, M, G, S):
     n = S.shape[0]
     acc = np.zeros(n)
@@ -821,7 +869,10 @@ def CoriolisForces(th, vel, M, G, S):
     Ftip = np.array([0,0,0,0,0,0])
     C = InverseDynamics(th, vel, acc, g, Ftip, M, G, S)
     return C
-    
+
+'''
+GravityForces computes the vector g(theta) for a given configuration
+'''   
 def GravityForces(th, g, M, G, S):
     n = S.shape[0]
     vel = np.zeros(n)
@@ -830,10 +881,16 @@ def GravityForces(th, g, M, G, S):
     f = InverseDynamics(th, vel, acc, g, Ftip, M, G, S)
     return f
 
+'''
+EndEffectorForces computes the jacobian multiplied by the tip force for a given configuration
+'''
 def EndEffectorForces(th, Ftip, S):
     J = FixedJacobian(S, th)
     return (J.transpose()).dot(Ftip)
-    
+
+'''
+ForwardDynamics computes the acceleration vector for a robot given configuration and torque
+'''    
 def ForwardDynamics(th, vel, torque, g, Ftip, M, G, S):
     c = CoriolisForces(th, vel, M, G, S)
     fg = GravityForces(th, g, M, G, S)
@@ -841,12 +898,36 @@ def ForwardDynamics(th, vel, torque, g, Ftip, M, G, S):
     m = InertiaMatrix(th, M, G, S)
     RH = torque - c - fg - fj
     return np.linalg.pinv(m).dot(RH)
-    
+
+'''
+EulerStep takes the current state and returns the state after a change in time
+'''    
 def EulerStep(th0, vel0, acc0, del_t):
     th = th0 + del_t*vel0
     vel = vel0 + del_t*acc0
     return th, vel
     
+'''
+InverseDynamicsTrajectory takes a robot trajectory specified as a set of N+1 points for position, velocity, and acceleration and output a set of N torques
+thStart = np.array([0,0,0,0,0,0])
+thEnd = np.array([pi/2,pi/2,pi/2,pi/2,pi/2,pi/2])
+T = 1
+del_t = .001
+N = T/del_t
+tSpace = np.linspace(0,T,N)
+thList = JointTrajectory(thStart, thEnd, T, N, 5)
+g = np.array([0,0,-9.8])
+Ftips = np.zeros([N, 6])
+velList = np.zeros([N,6])
+accList = np.zeros([N,6])
+for i in range(6):
+    pos = thList[:,0]
+    vel = np.append(0,np.diff(pos)/del_t)
+    acc = np.append(0,np.diff(vel)/del_t)
+    velList[:,i] = vel
+    accList[:,i] = acc    
+torques = InverseDynamicsTrajectory(thList, velList, accList, g, Ftips, M, G, S)
+'''
 def InverseDynamicsTrajectory(ths, vels, accs, g, Ftips, M, G, S):
     N = ths.shape[0]
     n = S.shape[0]
@@ -860,6 +941,9 @@ def InverseDynamicsTrajectory(ths, vels, accs, g, Ftips, M, G, S):
         torques[i] = torque
     return torques
 
+'''
+ForwardDynamicsTrajectory takes an initial robot state and a torque history and computes the robot state as a function of time
+'''
 def ForwardDynamicsTrajectory(th, vel, torques, del_t, g, Ftip, M, G, S):
     N = torques.shape[0]
     n = S.shape[0]
